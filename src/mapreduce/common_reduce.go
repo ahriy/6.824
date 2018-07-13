@@ -62,8 +62,8 @@ func doReduce(
 	enc := json.NewEncoder(outfile)
 
 	// iterate the intermediate files to get the result
+	var kvs []KeyValue
 	for m := 0; m < nMap; m++ {
-		var kvs []KeyValue
 		infile, err := os.Open(reduceName(jobName, m, reduceTask))
 		if err != nil {
 			log.Println(err)
@@ -81,27 +81,27 @@ func doReduce(
 			}
 			kvs = append(kvs, kv)
 		}
-		if len(kvs) == 0 {
-			log.Printf("infile %s: kvs is empty!\n", reduceName(jobName, m, reduceTask))
-			return
-		}
-		sort.Slice(kvs, func(i, j int) bool {
-			return kvs[i].Key < kvs[j].Key
-		})
+	}
+	if len(kvs) == 0 {
+		log.Println("kvs is empty!")
+		return
+	}
+	sort.Slice(kvs, func(i, j int) bool {
+		return kvs[i].Key < kvs[j].Key
+	})
 
-		// sort kvs, so we can assemble kv with same key
-		oldKey := kvs[0].Key
-		var values []string
-		for i, kv := range kvs {
-			if kv.Key != oldKey {
-				enc.Encode(KeyValue{oldKey, reduceF(oldKey, values)})
-				oldKey = kv.Key
-				values = values[:0]
-			}
-			values = append(values, kv.Value)
-			if i == len(kvs) - 1 {
-				enc.Encode(KeyValue{oldKey, reduceF(oldKey, values)})
-			}
+	// sort kvs, so we can assemble kv with same key
+	oldKey := kvs[0].Key
+	var values []string
+	for i, kv := range kvs {
+		if kv.Key != oldKey {
+			enc.Encode(KeyValue{oldKey, reduceF(oldKey, values)})
+			oldKey = kv.Key
+			values = values[:0]
+		}
+		values = append(values, kv.Value)
+		if i == len(kvs) - 1 {
+			enc.Encode(KeyValue{oldKey, reduceF(oldKey, values)})
 		}
 	}
 

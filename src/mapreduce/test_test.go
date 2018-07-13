@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	//nNumber = 100000
-	nNumber = 100
+	nNumber = 100000
 	nMap    = 20
 	nReduce = 10
 )
@@ -52,7 +51,7 @@ func check(t *testing.T, files []string) {
 	defer output.Close()
 
 	var lines []string
-	t.Logf("files is %v\n", files)
+
 	for _, f := range files {
 		input, err := os.Open(f)
 		if err != nil {
@@ -77,7 +76,7 @@ func check(t *testing.T, files []string) {
 		if n == 1 && err == nil {
 			n, err = fmt.Sscanf(text, "%d", &v2)
 		}
-		t.Logf("v1 is %d, and v2 is %d\n", v1, v2)
+
 		if err != nil || v1 != v2 {
 			t.Fatalf("line %d: %d != %d err %v\n", i, v1, v2, err)
 		}
