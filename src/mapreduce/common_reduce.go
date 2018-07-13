@@ -1,7 +1,6 @@
 package mapreduce
 
 import (
-	"fmt"
 	"encoding/json"
 	"os"
 	"log"
@@ -52,8 +51,17 @@ func doReduce(
 	//
 	// Your code here (Part I).
 	//
-	fmt.Println("=================== Reduce Stage ===================")
 
+	// prepare to write the result to merge file
+	outfile, err := os.Create(outFile)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer outfile.Close()
+	enc := json.NewEncoder(outfile)
+
+	// iterate the intermediate files to get the result
 	for m := 0; m < nMap; m++ {
 		var kvs []KeyValue
 		infile, err := os.Open(reduceName(jobName, m, reduceTask))
@@ -61,41 +69,25 @@ func doReduce(
 			log.Println(err)
 			return
 		}
-		dec := json.NewDecoder(infile)
+		defer infile.Close()
 
-		//for err = dec.Decode(&kv); err == nil; {
-		//	fmt.Printf("key is %s, value is %s\n", kv.Key, kv.Value)
-		//}
+		dec := json.NewDecoder(infile)
 		for dec.More() {
 			var kv KeyValue
 			err := dec.Decode(&kv)
 			if err != nil {
-				infile.Close()
 				log.Println(err)
 				return
 			}
 			kvs = append(kvs, kv)
-			//fmt.Printf("key is %v, value is %v\n", kv.Key, kv.Value)
-
 		}
 		if len(kvs) == 0 {
-			infile.Close()
 			log.Printf("infile %s: kvs is empty!\n", reduceName(jobName, m, reduceTask))
 			return
 		}
 		sort.Slice(kvs, func(i, j int) bool {
 			return kvs[i].Key < kvs[j].Key
 		})
-
-		// prepare to write the result to merge file
-		outfile, err := os.Create(outFile)
-		fmt.Printf("outFile is %s\n", outFile)
-		if err != nil {
-			infile.Close()
-			log.Println(err)
-			return
-		}
-		enc := json.NewEncoder(outfile)
 
 		// sort kvs, so we can assemble kv with same key
 		oldKey := kvs[0].Key
@@ -107,12 +99,10 @@ func doReduce(
 				values = values[:0]
 			}
 			values = append(values, kv.Value)
-			if i == len(kvs) {
+			if i == len(kvs) - 1 {
 				enc.Encode(KeyValue{oldKey, reduceF(oldKey, values)})
 			}
 		}
-		//fmt.Println(kvs)
-		infile.Close()
 	}
 
 }

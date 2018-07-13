@@ -57,7 +57,6 @@ func doMap(
 	//
 	// Your code here (Part I).
 	//
-	fmt.Printf("inFile is %s\n", inFile)
 	fileBytes, err := ioutil.ReadFile(inFile)
 	if err != nil {
 		fmt.Print(err)
@@ -82,10 +81,7 @@ func doMap(
 			}
 		}
 		outfile.Close()
-
-		fmt.Printf("taskname is %s\n", reduceTaskName)
 	}
-
 }
 
 func ihash(s string) int {
