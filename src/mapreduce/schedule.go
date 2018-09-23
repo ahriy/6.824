@@ -2,6 +2,7 @@ package mapreduce
 
 import (
 	"fmt"
+	"sync"
 )
 
 //
@@ -27,53 +28,55 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 
 	fmt.Printf("Schedule: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 
-	// All ntasks raw_tasks have to be scheduled on workers. Once all raw_tasks
+	// All ntasks tasks have to be scheduled on workers. Once all tasks
 	// have completed successfully, schedule() should return.
 	//
 	// Your code here (Part III, Part IV).
 	//
 	idle_workers := make(chan string, ntasks)
-	raw_tasks := make(chan int, ntasks)
-	done_tasks := make(chan int, ntasks)
+	tasks := make(chan int, ntasks)
 	for i := 0; i < ntasks; i++ {
-		raw_tasks <- i
+		tasks <- i
 	}
 
-	count := 0
-	for {
-		select {
-		case new_worker := <-registerChan:
+	go func() {
+		for {
+			new_worker := <-registerChan
 			idle_workers <-new_worker
-		case worker := <-idle_workers:
-			select {
-			case i := <-raw_tasks:
-				go func() {
-					success := call(worker, "Worker.DoTask",
-						DoTaskArgs{jobName, mapFiles[i], phase, i, n_other},
-						nil)
-					idle_workers <-worker
-					if (success) {
-						fmt.Printf("finish task %v!\n", i)
-						done_tasks <-i
-					} else {
-						fmt.Printf("task %v failed!\n", i)
-						raw_tasks <- i
-					}
-
-				}()
-			case <-done_tasks:
-				idle_workers <-worker
+		}
+	}()
+	var (
+		count = 0
+		count_lock sync.Mutex
+	)
+	for {
+		worker := <-idle_workers
+		i, ok := <-tasks
+		if !ok {
+			goto TasksDone
+		}
+		go func() {
+			success := call(worker, "Worker.DoTask",
+				DoTaskArgs{jobName, mapFiles[i], phase, i, n_other},
+				nil)
+			idle_workers <-worker
+			if (success) {
+				fmt.Printf("finish task %v!\n", i)
+				count_lock.Lock()
 				count++
 				if count == ntasks {
-					goto TasksDone
+					close(tasks)
 				}
+				count_lock.Unlock()
+			} else {
+				fmt.Printf("task %v failed!\n", i)
+				tasks <- i
 			}
-		}
+
+		}()
 	}
 
 TasksDone:
-	close(done_tasks)
-	close(raw_tasks)
 	close(idle_workers)
 	fmt.Printf("Finish: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 }

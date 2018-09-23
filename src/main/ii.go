@@ -41,7 +41,6 @@ func reduceF(key string, values []string) string {
 			documents = append(documents, value)
 		}
 	}
-	
 	sort.Strings(documents)
 	result :=  fmt.Sprintf("%v ", len(documents))
 	for i,document := range documents {
