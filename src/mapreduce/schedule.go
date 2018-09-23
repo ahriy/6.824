@@ -34,35 +34,70 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	//
 	idle_workers := make(chan string, ntasks)
 	tasks := make(chan int, ntasks)
-	results := make(chan bool, ntasks)
+	results := make(chan int, ntasks)
 	for i := 0; i < ntasks; i++ {
 		tasks <- i
 	}
-	close(tasks)
+	//for {
+	//	select {
+	//		case new_worker := <-registerChan:
+	//			idle_workers <-new_worker
+	//		case worker := <-idle_workers:
+	//			i, ok := <-tasks
+	//			if ok {
+	//				go func() {
+	//					fmt.Printf("start call!\n")
+	//					success := call(worker, "Worker.DoTask",
+	//						 DoTaskArgs{jobName, mapFiles[i], phase, i, n_other},
+	//						 nil)
+	//					idle_workers <-worker
+	//					if (success) {
+	//						fmt.Printf("success!\n")
+	//						results <-i
+	//					} else {
+	//						fmt.Printf("failed!\n")
+	//						tasks <- i
+	//					}
+	//
+	//				}()
+	//			} else {
+	//				goto TasksDone
+	//			}
+	//	}
+	//}
+
+	count := 0
 	for {
 		select {
-			case new_worker := <-registerChan:
-				idle_workers <-new_worker
-			case worker := <-idle_workers:
-				i, ok := <-tasks
-				if ok {
-					go func() {
-						call(worker, "Worker.DoTask",
-							 DoTaskArgs{jobName, mapFiles[i], phase, i, n_other},
-							 nil)
-						idle_workers <-worker
-						results <-true
-					}()
-				} else {
+		case new_worker := <-registerChan:
+			idle_workers <-new_worker
+		case worker := <-idle_workers:
+			select {
+			case i := <-tasks:
+				go func() {
+					success := call(worker, "Worker.DoTask",
+						DoTaskArgs{jobName, mapFiles[i], phase, i, n_other},
+						nil)
+					idle_workers <-worker
+					if (success) {
+						fmt.Printf("finish task %v!\n", i)
+						results <-i
+					} else {
+						fmt.Printf("task %v failed!\n", i)
+						tasks <- i
+					}
+
+				}()
+			case <-results:
+				idle_workers <-worker
+				count++
+				if count == ntasks {
 					goto TasksDone
 				}
+			}
 		}
 	}
-
 TasksDone:
-	for i := 0; i < ntasks; i++ {
-		<-results
-	}
 	close(idle_workers)
 	close(results)
 	fmt.Printf("Finish: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
