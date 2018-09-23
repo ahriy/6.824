@@ -27,44 +27,17 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 
 	fmt.Printf("Schedule: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 
-	// All ntasks tasks have to be scheduled on workers. Once all tasks
+	// All ntasks raw_tasks have to be scheduled on workers. Once all raw_tasks
 	// have completed successfully, schedule() should return.
 	//
 	// Your code here (Part III, Part IV).
 	//
 	idle_workers := make(chan string, ntasks)
-	tasks := make(chan int, ntasks)
-	results := make(chan int, ntasks)
+	raw_tasks := make(chan int, ntasks)
+	done_tasks := make(chan int, ntasks)
 	for i := 0; i < ntasks; i++ {
-		tasks <- i
+		raw_tasks <- i
 	}
-	//for {
-	//	select {
-	//		case new_worker := <-registerChan:
-	//			idle_workers <-new_worker
-	//		case worker := <-idle_workers:
-	//			i, ok := <-tasks
-	//			if ok {
-	//				go func() {
-	//					fmt.Printf("start call!\n")
-	//					success := call(worker, "Worker.DoTask",
-	//						 DoTaskArgs{jobName, mapFiles[i], phase, i, n_other},
-	//						 nil)
-	//					idle_workers <-worker
-	//					if (success) {
-	//						fmt.Printf("success!\n")
-	//						results <-i
-	//					} else {
-	//						fmt.Printf("failed!\n")
-	//						tasks <- i
-	//					}
-	//
-	//				}()
-	//			} else {
-	//				goto TasksDone
-	//			}
-	//	}
-	//}
 
 	count := 0
 	for {
@@ -73,7 +46,7 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 			idle_workers <-new_worker
 		case worker := <-idle_workers:
 			select {
-			case i := <-tasks:
+			case i := <-raw_tasks:
 				go func() {
 					success := call(worker, "Worker.DoTask",
 						DoTaskArgs{jobName, mapFiles[i], phase, i, n_other},
@@ -81,14 +54,14 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 					idle_workers <-worker
 					if (success) {
 						fmt.Printf("finish task %v!\n", i)
-						results <-i
+						done_tasks <-i
 					} else {
 						fmt.Printf("task %v failed!\n", i)
-						tasks <- i
+						raw_tasks <- i
 					}
 
 				}()
-			case <-results:
+			case <-done_tasks:
 				idle_workers <-worker
 				count++
 				if count == ntasks {
@@ -97,8 +70,10 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 			}
 		}
 	}
+
 TasksDone:
+	close(done_tasks)
+	close(raw_tasks)
 	close(idle_workers)
-	close(results)
 	fmt.Printf("Finish: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 }
