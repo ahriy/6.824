@@ -46,8 +46,8 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 		}
 	}()
 	var (
-		count = 0
-		count_lock sync.Mutex
+		count      = 0
+		task_lock sync.Mutex
 	)
 	for {
 		worker := <-idle_workers
@@ -62,21 +62,23 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 			idle_workers <-worker
 			if (success) {
 				fmt.Printf("finish task %v!\n", i)
-				count_lock.Lock()
+				task_lock.Lock()
 				count++
 				if count == ntasks {
 					close(tasks)
+				} else {
+					task_lock.Unlock()
 				}
-				count_lock.Unlock()
 			} else {
 				fmt.Printf("task %v failed!\n", i)
+				task_lock.Lock()
 				tasks <- i
+				task_lock.Unlock()
 			}
 
 		}()
 	}
 
 TasksDone:
-	close(idle_workers)
 	fmt.Printf("Finish: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 }
