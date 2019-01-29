@@ -53,7 +53,8 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 		worker := <-idle_workers
 		i, ok := <-tasks
 		if !ok {
-			goto TasksDone
+			fmt.Printf("Finish: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
+			return
 		}
 		go func() {
 			success := call(worker, "Worker.DoTask",
@@ -78,7 +79,4 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 
 		}()
 	}
-
-TasksDone:
-	fmt.Printf("Finish: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 }
